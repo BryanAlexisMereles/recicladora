@@ -1,46 +1,26 @@
-//LCD config
-#include <Wire.h> 
-#include <LiquidCrystal_I2C.h>
-LiquidCrystal_I2C lcd(0x3f,16,2);  //sometimes the adress is not 0x3f. Change to 0x27 if it dosn't work.
-
-//Thermistor needed libraries
-#include <thermistor.h>           //Download it here: https://electronoobs.com/eng_arduino_thermistor.php
-thermistor therm1(A0,0);          //Connect thermistor on A0, 0 represents TEMP_SENSOR_0 ( configuration.h for more)
+/* Control velocidad y temperatura para una recicladora de PETG.
+ * Una Arielada de Franco Soluciones & Bryan Mereles.
+ */
+#include <thermistor.h> 
 
 
-//I/O
-int PWM_pin = 5;                  //Pin for PWM signal to the MOSFET driver (the BJT npn with pullup)
-int speed_pot = A1;
-int but1 = 7;
-int EN = 2;
-int STEP = 3;
-int DIR = 4;
-int LED = 13;
+int steps =    5;       // pin step 9
+int direccion =6;       // pin direccion 3
+int POT         ;       // lectura del potenciometro o comando
+int boton =    7;       // pin pulsador
+int BZ =       9;      // Boozer
+int PWM_pin =  13;      // pin Bloque calefactor y ventilador
 
-//Variables
+// Variables de temperatura
+int TempF = 200;
 float set_temperature = 200;            //Default temperature setpoint. Leave it 0 and control it with rotary encoder
 float temperature_read = 0.0;
 float PID_error = 0;
 float previous_error = 0;
 float elapsedTime, Time, timePrev;
 float PID_value = 0;
-int button_pressed = 0;
-int menu_activated=0;
-float last_set_temperature = 0;
+thermistor therm1(A0,0);
 int max_PWM = 255;
-
-//Stepper Variables
-int max_speed = 1000;
-int main_speed = 0;
-bool but1_state = true;
-bool activate_stepper = false;
-int rotating_speed = 0;
-
-
-
-#include <AccelStepper.h>
-// Define a stepper and the pins it will use
-AccelStepper stepper1(1, STEP, DIR); // (Type of driver: with 2 pins, STEP, DIR)
 
 //PID constants
 //////////////////////////////////////////////////////////
@@ -53,56 +33,35 @@ float last_ki = 0;
 float last_kd = 0;
 
 int PID_values_fixed =0;
+/////////////////////////////////////////////////////////
 
-
-
-void setup() {  
-  pinMode(EN, OUTPUT);
-  digitalWrite(EN, HIGH);     //Stepper driver is disbled
-  stepper1.setMaxSpeed(max_speed);  
-  pinMode(but1, INPUT_PULLUP);
-  pinMode(speed_pot, INPUT);
-  pinMode(LED, OUTPUT);
-  digitalWrite(LED, LOW);
+void setup() {                
   
-  pinMode(PWM_pin,OUTPUT);
-  TCCR0B = TCCR0B & B11111000 | B00000010;    // D6 adn D6 PWM frequency of 7812.50 Hz
-  Time = millis();
-
-  TCCR1A = 0;             //Reset entire TCCR1A register
-  TCCR1B = 0;             //Reset entire TCCR1B register
-  TCCR1A |= B00000010;    //   /8
-  TCNT1 = 0;              //Reset Timer 1 value to 0
-  
-  lcd.init();
-  lcd.backlight();
+  // inicializamos pin como salidas.
+  Serial.begin(9600);
+  pinMode(steps, OUTPUT); 
+  pinMode(direccion, OUTPUT); 
+  pinMode(boton, INPUT);
 }
 
 void loop() {
-  if(!digitalRead(but1) && but1_state){
-    but1_state = false;
-    activate_stepper = !activate_stepper;
-    delay(10);
-  }
-  else if(digitalRead(but1) && !but1_state){
-    but1_state = true;
-  }
   
-  if(activate_stepper){
-    digitalWrite(LED, HIGH);
-    digitalWrite(EN, LOW);    //We activate stepper driver
-    rotating_speed = map(analogRead(speed_pot),0,1024,main_speed,max_speed);
-    stepper1.setSpeed(rotating_speed);
-    //stepper1.runSpeed();
-  }
-  else
-  {
-    digitalWrite(EN, HIGH);    //We deactivate stepper driver
-    digitalWrite(LED, LOW);
-    stepper1.setSpeed(0);
-    stepper1.runSpeed();
-  }
-  
+ //Lecturas
+  char Comandos = Serial.read();  //lee comandos de letras desde el celular por app inventor
+  int  Temp = analogRead(A0);     // leemos el sensor de temperatura
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Control de Temperatura
+  if(Comandos == 'T') //si oprimo mas temperatura el objetivo de temperatura a alcanzar sube en +1
+    {
+      TempF= TempF + 1;
+      }
+     else if(Comandos == 't')
+{
+      TempF= TempF - 1;
+      }
+
   // First we read the real value of temperature
   temperature_read = therm1.analog2temp(); // read temperature
   
@@ -135,24 +94,45 @@ void loop() {
   //Now we can write the PWM signal to the mosfet on digital pin D5
   analogWrite(PWM_pin,PID_value);
   previous_error = PID_error;     //Remember to store the previous error for next loop.
-  
-  delay(250); //Refresh rate + delay of LCD print
-  lcd.clear();
-  
-  lcd.setCursor(0,0);
-  lcd.print("T: ");  
-  lcd.print(temperature_read,1);
-  lcd.print(" S: ");  
-  lcd.print(rotating_speed);
-  
-  lcd.setCursor(0,1);
-  lcd.print("PID: ");
-  lcd.print(PID_value);
- 
-}//Void loop end
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Velocidad del bobinador
+    if(Comandos == 'V') //si oprimo aumentar velocidad el tiempo entre pasos debe ser mas pequeño
+    {
+      POT= POT - 5;
+      }
+     else if(Comandos == 'v')
+{
+      POT= POT + 5;
+      }
+      int Vel= POT*-1; //obtengo el opuesto del valor POT para luego graficar un incremento de la velocidad como valor positivo y biceversa
+//////////////////////////////////////////////////////////////////////////////////////////////////
 
-ISR(TIMER1_COMPA_vect){
-  TCNT1  = 0;                  //First, set the timer back to 0 so it resets for next interrupt
-  stepper1.runSpeed();
-}
+// Encendido del motor de la bobinadora y parada     
+    if(Comandos == 'A')
+    {
+    digitalWrite(steps, HIGH);         // Aqui generamos un flanco de bajada HIGH - LOW
+    delayMicroseconds(5);              // Pequeño retardo para formar el pulso en STEP
+    digitalWrite(steps, LOW);         // y el A4988 de avanzara un paso el motor
+    delayMicroseconds(POT); // generamos un retardo con el valor leido del potenciometro
+    }
+    
+  else if (Comandos== 'a')
+  {
+    digitalWrite (steps, LOW);
+  }
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+//Imprimimos los datos en el monitor serial para control
+  Serial.println (Comandos);
+  Serial.print ("Velocidad " );
+  Serial.print (Vel );
+  Serial.println ("%");
+  Serial.print ("Temperatura Fijada " );
+   Serial.print (TempF );
+  Serial.println ("ºC");
+   Serial.print ("Temperatura Real " );
+  Serial.print (Temp );
+  Serial.println ("ºC");
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+  }
