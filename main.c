@@ -142,7 +142,7 @@ set_temperature = TempF;
    Serial.print (TempF );
   Serial.println ("ºC");
 */   Serial.print ("Temperatura Real " );
-  Serial.print (t );
+  Serial.print (steinhart);
   Serial.println ("ºC");
  
  
