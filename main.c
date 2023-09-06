@@ -3,7 +3,7 @@
  */
 #include <thermistor.h> 
 #define B 3950 // B factor
-#define RESISTOR 100000 // resistencia del resistor, 200 kOhm
+#define RESISTOR 100000 // resistencia del resistor, 100 kOhm
 #define THERMISTOR 100000 // resistencia nominal del termistor, 100 kOhm
 #define NOMINAL 25 // temperatura nominal
  
