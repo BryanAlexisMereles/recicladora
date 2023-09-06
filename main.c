@@ -2,14 +2,16 @@
  * Una Arielada de Franco Soluciones & Bryan Mereles.
  */
 #include <thermistor.h> 
-
-
-int steps =    5;       // pin step 9
-int direccion =6;       // pin direccion 3
-int POT         ;       // lectura del potenciometro o comando
-int boton =    7;       // pin pulsador
-int BZ =       9;      // Boozer
-int PWM_pin =  13;      // pin Bloque calefactor y ventilador
+#define B 3950 // B factor
+#define RESISTOR 100000 // resistencia del resistor, 200 kOhm
+#define THERMISTOR 100000 // resistencia nominal del termistor, 100 kOhm
+#define NOMINAL 25 // temperatura nominal
+ 
+#define sensor A0
+#define    POT 10             // lectura del potenciometro o comando
+#define Motor  8            //Encendido del motor
+#define BZ     9     // Boozer
+#define PWM_pin   13      // pin Bloque calefactor y ventilador
 
 // Variables de temperatura
 int TempF = 200;
@@ -39,29 +41,39 @@ void setup() {
   
   // inicializamos pin como salidas.
   Serial.begin(9600);
-  pinMode(steps, OUTPUT); 
-  pinMode(direccion, OUTPUT); 
-  pinMode(boton, INPUT);
+  pinMode(5, OUTPUT); 
+   pinMode(13, OUTPUT);
+  
 }
 
 void loop() {
   
  //Lecturas
-  char Comandos = Serial.read();  //lee comandos de letras desde el celular por app inventor
+  char C = Serial.read();  //lee comandos de letras desde el celular por app inventor
   int  Temp = analogRead(A0);     // leemos el sensor de temperatura
+int t = analogRead(sensor);
+    float tr = 1023.0 / t - 1;
+    tr = RESISTOR / tr;
 
+      float steinhart;
+    steinhart = tr / THERMISTOR;
+    steinhart = log(steinhart);
+    steinhart /= B;
+    steinhart += 1.0 / (NOMINAL + 273.15);
+    steinhart = 1.0 / steinhart;
+    steinhart -= 273.15; 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Control de Temperatura
-  if(Comandos == 'T') //si oprimo mas temperatura el objetivo de temperatura a alcanzar sube en +1
+  if(C == 'T') //si oprimo mas temperatura el objetivo de temperatura a alcanzar sube en +1
     {
       TempF= TempF + 1;
       }
-     else if(Comandos == 't')
+     else if(C == 't')
 {
       TempF= TempF - 1;
       }
-
+set_temperature = TempF;
   // First we read the real value of temperature
   temperature_read = therm1.analog2temp(); // read temperature
   
@@ -97,42 +109,44 @@ void loop() {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Velocidad del bobinador
-    if(Comandos == 'V') //si oprimo aumentar velocidad el tiempo entre pasos debe ser mas pequeño
+    if(C == 'V') //si oprimo aumentar velocidad el tiempo entre pasos debe ser mas pequeño
     {
       POT= POT - 5;
       }
-     else if(Comandos == 'v')
+     else if(C == 'v')
 {
       POT= POT + 5;
       }
       int Vel= POT*-1; //obtengo el opuesto del valor POT para luego graficar un incremento de la velocidad como valor positivo y biceversa
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Encendido del motor de la bobinadora y parada     
-    if(Comandos == 'A')
-    {
-    digitalWrite(steps, HIGH);         // Aqui generamos un flanco de bajada HIGH - LOW
-    delayMicroseconds(5);              // Pequeño retardo para formar el pulso en STEP
-    digitalWrite(steps, LOW);         // y el A4988 de avanzara un paso el motor
-    delayMicroseconds(POT); // generamos un retardo con el valor leido del potenciometro
-    }
+// Encendido del motor de la bobinadora y parada    
+
+    if(C =='A') {
+    digitalWrite(5, HIGH);         // Aqui generamos un flanco de bajada HIGH - LOW
+    //delayMicroseconds(5);              // Pequeño retardo para formar el pulso en STEP
+   // digitalWrite(5, LOW);         // y el A4988 de avanzara un paso el motor
+   // delayMicroseconds(POT); // generamos un retardo con el valor leido del potenciometro
+   }
     
-  else if (Comandos== 'a')
-  {
-    digitalWrite (steps, LOW);
-  }
+ else if (C =='a') digitalWrite (5, LOW);
+  
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 //Imprimimos los datos en el monitor serial para control
-  Serial.println (Comandos);
+ /* Serial.println (C);
   Serial.print ("Velocidad " );
   Serial.print (Vel );
   Serial.println ("%");
   Serial.print ("Temperatura Fijada " );
    Serial.print (TempF );
   Serial.println ("ºC");
-   Serial.print ("Temperatura Real " );
-  Serial.print (Temp );
+*/   Serial.print ("Temperatura Real " );
+  Serial.print (t );
   Serial.println ("ºC");
-  ///////////////////////////////////////////////////////////////////////////////////////////////////
+ 
+ 
+ 
+ 
+ ///////////////////////////////////////////////////////////////////////////////////////////////////
   }
