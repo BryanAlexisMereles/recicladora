@@ -3,19 +3,21 @@
  */
 #include <thermistor.h> 
 #define B 3950 // B factor
-#define RESISTOR 100000 // resistencia del resistor, 100 kOhm
+#define RESISTOR 100000 // resistencia del resistor, 200 kOhm
 #define THERMISTOR 100000 // resistencia nominal del termistor, 100 kOhm
 #define NOMINAL 25 // temperatura nominal
  
 #define sensor A0
-#define    POT 10             // lectura del potenciometro o comando
-#define Motor  8            //Encendido del motor
+int    POT= 1;             // lectura del potenciometro o comando
+int V;
+int T;
+#define MotorIn  8            //Encendido del motor
 #define BZ     9     // Boozer
 #define PWM_pin   13      // pin Bloque calefactor y ventilador
 
 // Variables de temperatura
-int TempF = 200;
-float set_temperature = 200;            //Default temperature setpoint. Leave it 0 and control it with rotary encoder
+//int TempF = 400;
+float set_temperature = 200; //359;            //Default temperature setpoint. Leave it 0 and control it with rotary encoder
 float temperature_read = 0.0;
 float PID_error = 0;
 float previous_error = 0;
@@ -36,6 +38,11 @@ float last_kd = 0;
 
 int PID_values_fixed =0;
 /////////////////////////////////////////////////////////
+//                        Botones pulsadores con memoria
+
+
+
+
 
 void setup() {                
   
@@ -50,7 +57,12 @@ void loop() {
   
  //Lecturas
   char C = Serial.read();  //lee comandos de letras desde el celular por app inventor
-  int  Temp = analogRead(A0);     // leemos el sensor de temperatura
+  ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+  // leemos el sensor de temperatura
+  int  Temp = analogRead(A0);     
 int t = analogRead(sensor);
     float tr = 1023.0 / t - 1;
     tr = RESISTOR / tr;
@@ -67,13 +79,13 @@ int t = analogRead(sensor);
 // Control de Temperatura
   if(C == 'T') //si oprimo mas temperatura el objetivo de temperatura a alcanzar sube en +1
     {
-      TempF= TempF + 1;
+      set_temperature= set_temperature+5;
       }
      else if(C == 't')
 {
-      TempF= TempF - 1;
+      set_temperature= set_temperature-5;
       }
-set_temperature = TempF;
+
   // First we read the real value of temperature
   temperature_read = therm1.analog2temp(); // read temperature
   
@@ -106,48 +118,44 @@ set_temperature = TempF;
   //Now we can write the PWM signal to the mosfet on digital pin D5
   analogWrite(PWM_pin,PID_value);
   previous_error = PID_error;     //Remember to store the previous error for next loop.
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Velocidad del bobinador
-    if(C == 'V') //si oprimo aumentar velocidad el tiempo entre pasos debe ser mas pequeño
-    {
-      POT= POT - 5;
-      }
-     else if(C == 'v')
-{
-      POT= POT + 5;
-      }
-      int Vel= POT*-1; //obtengo el opuesto del valor POT para luego graficar un incremento de la velocidad como valor positivo y biceversa
-//////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////
 
 // Encendido del motor de la bobinadora y parada    
 
-    if(C =='A') {
+    //if(C =='A') {
     digitalWrite(5, HIGH);         // Aqui generamos un flanco de bajada HIGH - LOW
-    //delayMicroseconds(5);              // Pequeño retardo para formar el pulso en STEP
-   // digitalWrite(5, LOW);         // y el A4988 de avanzara un paso el motor
-   // delayMicroseconds(POT); // generamos un retardo con el valor leido del potenciometro
-   }
+    delayMicroseconds(1);              // Pequeño retardo para formar el pulso en STEP
+    digitalWrite(5, LOW);         // y el A4988 de avanzara un paso el motor
+    delayMicroseconds(POT); // generamos un retardo con el valor leido del potenciometro
+  // }
     
- else if (C =='a') digitalWrite (5, LOW);
-  
+// else if (C =='a') digitalWrite (5, LOW);
+ // Velocidad del bobinador
+    if(C == 'V') //si oprimo aumentar velocidad el tiempo entre pasos debe ser mas pequeño
+    { 
+      POT= POT+10;
+      }
+     else if(C == 'v')
+       { POT= POT-10;}
+      int Vel= POT+99; //obtengo el opuesto del valor POT para luego graficar un incremento de la velocidad como valor positivo y biceversa
+     // if (POT<0){POT=0;} 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 //Imprimimos los datos en el monitor serial para control
- /* Serial.println (C);
-  Serial.print ("Velocidad " );
-  Serial.print (Vel );
-  Serial.println ("%");
-  Serial.print ("Temperatura Fijada " );
-   Serial.print (TempF );
-  Serial.println ("ºC");
-*/    Serial.print ("Temperatura " );
-  Serial.print (steinhart);
-  Serial.print ("ºC / ");
+ 
+
+int Temperatura =steinhart;
+
+Serial.print(steinhart);
+  Serial.println (";");
  Serial.print (set_temperature);
- Serial.println ("ºC");
+  Serial.println (";");
+  Serial.print (Vel);
+  Serial.println (";");
+ // Serial.print ("ºC / ");
+// Serial.print (set_temperature);
+// Serial.println ("ºC");
  
- 
- 
+ delay(40);
  ///////////////////////////////////////////////////////////////////////////////////////////////////
   }
