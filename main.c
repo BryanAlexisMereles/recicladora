@@ -33,9 +33,15 @@ PID pid(&input, &output, &setpoint, Kp, Ki, Kd, DIRECT);
 const int analogInPin = A1;  // Analog input pin that the potentiometer is attached to
 const int motor = 5; // Analog output pin that the LED is attached to
 int MOUT = 5;
-int Vel = 0;        // value read from the pot
+int Vel = 300;        // value read from the pot
 int outputValue = 0; 
 
+
+/////////////////////////////////////////////////////Botones
+int V;
+int v;
+int T;
+int t;
 
 /////////////////////////////////////////////////////
 
@@ -65,7 +71,26 @@ pinMode(MOUT, OUTPUT);
 void loop() 
 {
 
+///////////////////////////////////////////////////Botones
+ char C = Serial.read();  //lee comandos de letras desde el celular por app inventor
 
+if(C == 'T') //si oprimo mas temperatura el objetivo de temperatura a alcanzar sube en +1
+    {
+      setpoint++;
+      }
+     else if(C == 't')
+     {
+      setpoint--;
+      }
+
+ if(C == 'V') //si oprimo mas temperatura el objetivo de temperatura a alcanzar sube en +1
+    {
+      Vel= Vel+10;
+      }
+     else if(C == 'v')
+     {
+      Vel= Vel-10;
+      }
 ///////////////////////////////////////////////////Control de Temperatura  
   //Record the start time for the loop
   currentTime = millis();
@@ -81,7 +106,7 @@ void loop()
 
 
 ///////////////////////////////////////////////////Control de Motor
-  Vel = analogRead(analogInPin);
+//  Vel = analogRead(analogInPin);
   // map it to the range of the analog out:
   outputValue = map(Vel, 0, 1023, 0, 255);
   // change the analog out value:
@@ -89,11 +114,16 @@ void loop()
 
 
 ///////////////////////////////////////////////////Envio de datos por KornFlakers 
-     Serial.print(Vel);
-    Serial.print (" / ");
- Serial.print(initialTemp);
-     Serial.print (" ºC / ");
-  Serial.print(input);
-  Serial.println(" ºC");
+//escalados y estetica de los datos
+int TFij=setpoint;
+int TReal=input;
+int Velocidad= Vel/10;
 
+     Serial.print(Velocidad);
+    Serial.println ("; ");
+ Serial.print(TFij);
+     Serial.println ("; ");
+  Serial.print(TReal);
+  Serial.println("; ");
+delay (40);
 }
