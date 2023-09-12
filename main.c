@@ -1,161 +1,99 @@
 /* Control velocidad y temperatura para una recicladora de PETG.
  * Una Arielada de Franco Soluciones & Bryan Mereles.
  */
-#include <thermistor.h> 
-#define B 3950 // B factor
-#define RESISTOR 100000 // resistencia del resistor, 200 kOhm
-#define THERMISTOR 100000 // resistencia nominal del termistor, 100 kOhm
-#define NOMINAL 25 // temperatura nominal
- 
-#define sensor A0
-int    POT= 1;             // lectura del potenciometro o comando
-int V;
-int T;
-#define MotorIn  8            //Encendido del motor
-#define BZ     9     // Boozer
-#define PWM_pin   13      // pin Bloque calefactor y ventilador
+////////////////////////////////////Librerias
+#include <PID_v1.h>
+#include <thermistor.h>                     //https://github.com/miguel5612/Arduino-ThermistorLibrary
 
-// Variables de temperatura
-//int TempF = 400;
-float set_temperature = 200; //359;            //Default temperature setpoint. Leave it 0 and control it with rotary encoder
-float temperature_read = 0.0;
-float PID_error = 0;
-float previous_error = 0;
-float elapsedTime, Time, timePrev;
-float PID_value = 0;
-thermistor therm1(A0,0);
-int max_PWM = 255;
+///////////////////////////////////Control de temperatura y lectura del termistor
 
-//PID constants
-//////////////////////////////////////////////////////////
-int kp = 90;   int ki = 30;   int kd = 80;
-//////////////////////////////////////////////////////////
+#define initialTemp 200                      //Define parameters for each edjustable setting
+#define minTemp 20                      
+#define maxTemp 300
 
-int PID_p = 0;    int PID_i = 0;    int PID_d = 0;
-float last_kp = 0;
-float last_ki = 0;
-float last_kd = 0;
+const int temperaturePin = A2;              //Define the remaining IO pins for motor, pushbutton & thermistor
+const int pwmPin = 13;
 
-int PID_values_fixed =0;
-/////////////////////////////////////////////////////////
-//                        Botones pulsadores con memoria
+int loopTime = 50;                          //Define time for each loop cycle
+unsigned long currentTime = 0;
+
+double Kp = 80.0;                            //Define PID constants
+double Ki = 35.0;
+double Kd = 80.0;
+
+thermistor therm1(temperaturePin,0);         //Connect thermistor on A2
+
+double setpoint = initialTemp;               //Define PID variables & establish PID loop
+double input, output;
+PID pid(&input, &output, &setpoint, Kp, Ki, Kd, DIRECT);
 
 
+/////////////////////////////////////////////////////Control del Motor
+
+const int analogInPin = A1;  // Analog input pin that the potentiometer is attached to
+const int motor = 5; // Analog output pin that the LED is attached to
+int MOUT = 5;
+int Vel = 0;        // value read from the pot
+int outputValue = 0; 
 
 
+/////////////////////////////////////////////////////
 
-void setup() {                
+
+void setup() 
+{
+  //Initialize serial communication
+Serial.begin(9600);
+
+///////////////////////////////////////////////////Control de Temperatura  
+  //Configure PWM pin
+  pinMode(pwmPin, OUTPUT);
   
-  // inicializamos pin como salidas.
-  Serial.begin(9600);
-  pinMode(5, OUTPUT); 
-   pinMode(13, OUTPUT);
+  //Set the PID parameters
+  pid.SetMode(AUTOMATIC);
+  pid.SetOutputLimits(0, 255);
   
+  //Read and set the initial input value
+  input = therm1.analog2temp();
+
+
+///////////////////////////////////////////////////Motor               
+pinMode(MOUT, OUTPUT);
+     
 }
 
-void loop() {
-  
- //Lecturas
-  char C = Serial.read();  //lee comandos de letras desde el celular por app inventor
-  ///////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////
-  // leemos el sensor de temperatura
-  int  Temp = analogRead(A0);     
-int t = analogRead(sensor);
-    float tr = 1023.0 / t - 1;
-    tr = RESISTOR / tr;
-
-      float steinhart;
-    steinhart = tr / THERMISTOR;
-    steinhart = log(steinhart);
-    steinhart /= B;
-    steinhart += 1.0 / (NOMINAL + 273.15);
-    steinhart = 1.0 / steinhart;
-    steinhart -= 273.15; 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Control de Temperatura
-  if(C == 'T') //si oprimo mas temperatura el objetivo de temperatura a alcanzar sube en +1
-    {
-      set_temperature= set_temperature+5;
-      }
-     else if(C == 't')
+void loop() 
 {
-      set_temperature= set_temperature-5;
-      }
 
-  // First we read the real value of temperature
-  temperature_read = therm1.analog2temp(); // read temperature
+
+///////////////////////////////////////////////////Control de Temperatura  
+  //Record the start time for the loop
+  currentTime = millis();
+
+  //Read the temperature
+  input = therm1.analog2temp(); // read temperature
   
-  //Next we calculate the error between the setpoint and the real value
-  PID_error = set_temperature - temperature_read + 6;
-  //Calculate the P value
-  PID_p = 0.01*kp * PID_error;
-  //Calculate the I value in a range on +-6
-  PID_i = 0.01*PID_i + (ki * PID_error);
+  //Compute the PID output
+  pid.Compute();
   
-  
-  //For derivative we need real time to calculate speed change rate
-  timePrev = Time;                            // the previous time is stored before the actual time read
-  Time = millis();                            // actual time read
-  elapsedTime = (Time - timePrev) / 1000; 
-  //Now we can calculate the D calue
-  PID_d = 0.01*kd*((PID_error - previous_error)/elapsedTime);
-  //Final total PID value is the sum of P + I + D
-  PID_value = PID_p + PID_i + PID_d;
+  //Update the PWM output
+  analogWrite(pwmPin, output);
 
-  
-  //We define PWM range between 0 and 255
-  if(PID_value < 0){
-    PID_value = 0;
-  }
-  if(PID_value > max_PWM){
-    PID_value = max_PWM;
-  }
-  
-  //Now we can write the PWM signal to the mosfet on digital pin D5
-  analogWrite(PWM_pin,PID_value);
-  previous_error = PID_error;     //Remember to store the previous error for next loop.
-////////////////////////////////////////////////////////////////////
 
-// Encendido del motor de la bobinadora y parada    
+///////////////////////////////////////////////////Control de Motor
+  Vel = analogRead(analogInPin);
+  // map it to the range of the analog out:
+  outputValue = map(Vel, 0, 1023, 0, 255);
+  // change the analog out value:
+  analogWrite(MOUT, outputValue);   
 
-    //if(C =='A') {
-    digitalWrite(5, HIGH);         // Aqui generamos un flanco de bajada HIGH - LOW
-    delayMicroseconds(1);              // Pequeño retardo para formar el pulso en STEP
-    digitalWrite(5, LOW);         // y el A4988 de avanzara un paso el motor
-    delayMicroseconds(POT); // generamos un retardo con el valor leido del potenciometro
-  // }
-    
-// else if (C =='a') digitalWrite (5, LOW);
- // Velocidad del bobinador
-    if(C == 'V') //si oprimo aumentar velocidad el tiempo entre pasos debe ser mas pequeño
-    { 
-      POT= POT+10;
-      }
-     else if(C == 'v')
-       { POT= POT-10;}
-      int Vel= POT+99; //obtengo el opuesto del valor POT para luego graficar un incremento de la velocidad como valor positivo y biceversa
-     // if (POT<0){POT=0;} 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
-//Imprimimos los datos en el monitor serial para control
- 
+///////////////////////////////////////////////////Envio de datos por KornFlakers 
+     Serial.print(Vel);
+    Serial.print (" / ");
+ Serial.print(initialTemp);
+     Serial.print (" ºC / ");
+  Serial.print(input);
+  Serial.println(" ºC");
 
-int Temperatura =steinhart;
-
-Serial.print(steinhart);
-  Serial.println (";");
- Serial.print (set_temperature);
-  Serial.println (";");
-  Serial.print (Vel);
-  Serial.println (";");
- // Serial.print ("ºC / ");
-// Serial.print (set_temperature);
-// Serial.println ("ºC");
- 
- delay(40);
- ///////////////////////////////////////////////////////////////////////////////////////////////////
-  }
+}
