@@ -69,8 +69,8 @@ void loop()
   
   //Print the temperature and PWM output
 
- Serial.print(initialTemp);
-    Serial.print(" ºC / ");
+  Serial.print(initialTemp);
+  Serial.print(" ºC / ");
   Serial.print(temp);
   Serial.println(" ºC");
 
