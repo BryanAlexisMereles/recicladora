@@ -7,7 +7,7 @@
 
 ///////////////////////////////////Control de temperatura y lectura del termistor
 
-#define initialTemp 200                      //Define parameters for each edjustable setting
+#define initialTemp 230                      //Define parameters for each edjustable setting
 #define minTemp 20                      
 #define maxTemp 300
 
